@@ -8,11 +8,9 @@ Based on "mergerfs.fsck" from mergerfs-tools.
 # Original copyright notice from mergerfs.fsck:
 #
 # Copyright (c) 2016, Antonio SJ Musumeci <trapexit@spawn.link>
-
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-
 # THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
 # WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
 # MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -20,7 +18,6 @@ Based on "mergerfs.fsck" from mergerfs-tools.
 # WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
 import argparse
 import ctypes
 import errno
@@ -34,10 +31,17 @@ different_count = 0
 different_files = []
 
 
-_libc = ctypes.CDLL("libc.so.6",use_errno=True)
+_libc = ctypes.CDLL("libc.so.6", use_errno=True)
 _lgetxattr = _libc.lgetxattr
-_lgetxattr.argtypes = [ctypes.c_char_p,ctypes.c_char_p,ctypes.c_void_p,ctypes.c_size_t]
-def lgetxattr(path,name):
+_lgetxattr.argtypes = [
+    ctypes.c_char_p,
+    ctypes.c_char_p,
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+]
+
+
+def lgetxattr(path, name):
     if type(path) == str:
         path = path.encode(errors='backslashreplace')
     if type(name) == str:
@@ -45,7 +49,7 @@ def lgetxattr(path,name):
     length = 64
     while True:
         buf = ctypes.create_string_buffer(length)
-        res = _lgetxattr(path,name,buf,ctypes.c_size_t(length))
+        res = _lgetxattr(path, name, buf, ctypes.c_size_t(length))
         if res >= 0:
             return buf.raw[0:res]
         else:
@@ -55,38 +59,40 @@ def lgetxattr(path,name):
             elif err == errno.ENODATA:
                 return None
             else:
-                raise IOError(err,os.strerror(err),path)
+                raise OSError(err, os.strerror(err), path)
 
 
 def ismergerfs(path):
     try:
-        lgetxattr(path,"user.mergerfs.fullpath")
+        lgetxattr(path, "user.mergerfs.fullpath")
         return True
-    except IOError as e:
+    except OSError:
         return False
 
 
-def print_stats(Files,Stats):
-    for i in range(0,len(Files)):
-        print("  %i: %s" % (i,Files[i].decode(errors='backslashreplace')))
-        data = ("   - uid: {0:5}; gid: {1:5}; mode: {2:6o}; "
-                "size: {3:10}; mtime: {4}").format(
+def print_stats(Files, Stats):
+    for i in range(0, len(Files)):
+        print("  %i: %s" % (i, Files[i].decode(errors='backslashreplace')))
+        data = (
+            "   - uid: {:5}; gid: {:5}; mode: {:6o}; " "size: {:10}; mtime: {}"
+        ).format(
             Stats[i].st_uid,
             Stats[i].st_gid,
             Stats[i].st_mode,
             Stats[i].st_size,
-            Stats[i].st_mtime)
-        print (data)
+            Stats[i].st_mtime,
+        )
+        print(data)
 
 
-def check_consistancy(fullpath,verbose):
-    paths = lgetxattr(fullpath,"user.mergerfs.allpaths")
+def check_consistancy(fullpath, verbose):
+    paths = lgetxattr(fullpath, "user.mergerfs.allpaths")
     if not paths:
         return
     paths = paths.split(b'\0')
     if len(paths) <= 1:
         return
-    
+
     global checked_count
     checked_count += 1
 
@@ -101,27 +107,40 @@ def check_consistancy(fullpath,verbose):
         stats = [os.stat(path) for path in paths]
         # print("%s" % fullpath)
         if verbose:
-            print_stats(paths,stats)
+            print_stats(paths, stats)
 
 
 def buildargparser():
-    parser = argparse.ArgumentParser(description='audit a mergerfs mount for inconsistencies')
-    parser.add_argument('dir',type=str,
-                        help='starting directory')
-    parser.add_argument('-v','--verbose',action='store_true',
-                        help='print details of audit item')
+    parser = argparse.ArgumentParser(
+        description='audit a mergerfs mount for inconsistencies',
+    )
+    parser.add_argument(
+        'dir',
+        type=str,
+        help='starting directory',
+    )
+    parser.add_argument(
+        '-v',
+        '--verbose',
+        action='store_true',
+        help='print details of audit item',
+    )
     return parser
 
 
 def main():
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer,
-                                  encoding='utf8',
-                                  errors='backslashreplace',
-                                  line_buffering=True)
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer,
-                                  encoding='utf8',
-                                  errors='backslashreplace',
-                                  line_buffering=True)
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer,
+        encoding='utf8',
+        errors='backslashreplace',
+        line_buffering=True,
+    )
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer,
+        encoding='utf8',
+        errors='backslashreplace',
+        line_buffering=True,
+    )
 
     parser = buildargparser()
     args = parser.parse_args()
@@ -133,15 +152,15 @@ def main():
 
     try:
         verbose = args.verbose
-        for (dirname,dirnames,filenames) in os.walk(args.dir):
-            fulldirpath = os.path.join(args.dir,dirname)
-            #check_consistancy(fulldirpath,verbose)
+        for (dirname, dirnames, filenames) in os.walk(args.dir):
+            fulldirpath = os.path.join(args.dir, dirname)
+            # check_consistancy(fulldirpath,verbose)
             for filename in filenames:
-                fullpath = os.path.join(fulldirpath,filename)
-                check_consistancy(fullpath,verbose)
+                fullpath = os.path.join(fulldirpath, filename)
+                check_consistancy(fullpath, verbose)
     except KeyboardInterrupt:
         pass
-    except IOError as e:
+    except OSError as e:
         if e.errno == errno.EPIPE:
             pass
         else:

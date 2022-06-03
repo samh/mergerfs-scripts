@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-
 # Copyright (c) 2016, Antonio SJ Musumeci <trapexit@spawn.link>
-
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notice and this permission notice appear in all copies.
-
 # THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
 # WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
 # MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -13,7 +10,6 @@
 # WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
 import argparse
 import ctypes
 import errno
@@ -26,10 +22,17 @@ import shlex
 import sys
 
 
-_libc = ctypes.CDLL("libc.so.6",use_errno=True)
+_libc = ctypes.CDLL("libc.so.6", use_errno=True)
 _lgetxattr = _libc.lgetxattr
-_lgetxattr.argtypes = [ctypes.c_char_p,ctypes.c_char_p,ctypes.c_void_p,ctypes.c_size_t]
-def lgetxattr(path,name):
+_lgetxattr.argtypes = [
+    ctypes.c_char_p,
+    ctypes.c_char_p,
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+]
+
+
+def lgetxattr(path, name):
     if type(path) == str:
         path = path.encode(errors='backslashreplace')
     if type(name) == str:
@@ -37,7 +40,7 @@ def lgetxattr(path,name):
     length = 64
     while True:
         buf = ctypes.create_string_buffer(length)
-        res = _lgetxattr(path,name,buf,ctypes.c_size_t(length))
+        res = _lgetxattr(path, name, buf, ctypes.c_size_t(length))
         if res >= 0:
             return buf.raw[0:res]
         else:
@@ -47,14 +50,14 @@ def lgetxattr(path,name):
             elif err == errno.ENODATA:
                 return None
             else:
-                raise IOError(err,os.strerror(err),path)
+                raise OSError(err, os.strerror(err), path)
 
 
 def ismergerfs(path):
     try:
-        lgetxattr(path,b'user.mergerfs.fullpath')
+        lgetxattr(path, b'user.mergerfs.fullpath')
         return True
-    except IOError as e:
+    except OSError:
         return False
 
 
@@ -62,7 +65,7 @@ def hash_file(filepath, hasher=None, blocksize=65536):
     if not hasher:
         hasher = hashlib.md5()
 
-    with open(filepath,'rb') as afile:
+    with open(filepath, 'rb') as afile:
         buf = afile.read(blocksize)
         while buf:
             hasher.update(buf)
@@ -75,13 +78,13 @@ def short_hash_file(filepath, hasher=None, blocksize=65536, blocks=16):
     if not hasher:
         hasher = hashlib.md5()
 
-    with open(filepath,'rb') as f:
+    with open(filepath, 'rb') as f:
         size = os.fstat(f.fileno()).st_size
         if size <= blocksize:
             size = 1
             blocks = 1
 
-        random.seed(size,version=2)
+        random.seed(size, version=2)
         for _ in range(blocks):
             offset = random.randrange(size)
             f.seek(offset)
@@ -95,11 +98,11 @@ def short_hash_file(filepath, hasher=None, blocksize=65536, blocks=16):
 
 
 def sizeof_fmt(num):
-    for unit in ['','K','M','G','T','P','E','Z']:
+    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
         if abs(num) < 1024.0:
-            return "%3.1f%sB" % (num,unit)
+            return f"{num:3.1f}{unit}B"
         num /= 1024.0
-    return "%.1f%sB" % (num,'Y')
+    return "{:.1f}{}B".format(num, 'Y')
 
 
 def stat_files(paths):
@@ -107,17 +110,17 @@ def stat_files(paths):
     for path in paths:
         try:
             st = os.stat(path)
-            rv.append((path,st))
-        except:
+            rv.append((path, st))
+        except OSError:
             pass
 
     return rv
 
 
-def remove(files,execute,verbose):
-    for (path,stat) in files:
+def remove(files, execute, verbose):
+    for (path, stat) in files:
         try:
-            print('rm -vf',shlex.quote(path))
+            print('rm -vf', shlex.quote(path))
             if execute:
                 os.remove(path)
         except Exception as e:
@@ -125,26 +128,28 @@ def remove(files,execute,verbose):
 
 
 def print_stats(stats):
-    for i in range(0,len(stats)):
-        print("#  %i: %s" % (i+1,stats[i][0]))
-        data = ("#   - uid: {0:5}; gid: {1:5}; mode: {2:6o}; "
-                "size: {3}; mtime: {4}").format(
+    for i in range(0, len(stats)):
+        print("#  %i: %s" % (i + 1, stats[i][0]))
+        data = (
+            "#   - uid: {:5}; gid: {:5}; mode: {:6o}; " "size: {}; mtime: {}"
+        ).format(
             stats[i][1].st_uid,
             stats[i][1].st_gid,
             stats[i][1].st_mode,
             sizeof_fmt(stats[i][1].st_size),
-            stats[i][1].st_mtime)
+            stats[i][1].st_mtime,
+        )
         print(data)
 
 
 def total_size(stats):
     total = 0
-    for (name,stat) in stats:
+    for (name, stat) in stats:
         total = total + stat.st_size
     return total
 
 
-def manual_dedup(fullpath,stats):
+def manual_dedup(fullpath, stats):
     done = False
     while not done:
         value = input("# Which to keep? ('s' to skip):")
@@ -161,9 +166,13 @@ def manual_dedup(fullpath,stats):
             stats.remove(stats[value])
             done = True
         except NameError:
-            print("Input error: enter a value [1-{0}] or skip by entering 's'".format(len(stats)))
+            print(
+                f"Input error: enter a value [1-{len(stats)}] or skip by entering 's'",
+            )
         except ValueError:
-            print("Input error: enter a value [1-{0}] or skip by entering 's'".format(len(stats)))
+            print(
+                f"Input error: enter a value [1-{len(stats)}] or skip by entering 's'",
+            )
 
 
 def mtime_all(stats):
@@ -171,8 +180,8 @@ def mtime_all(stats):
     return all(x[1].st_mtime == mtime for x in stats)
 
 
-def mtime_any(mtime,stats):
-    return any([st.st_mtime == mtime for (path,st) in stats])
+def mtime_any(mtime, stats):
+    return any([st.st_mtime == mtime for (path, st) in stats])
 
 
 def size_all(stats):
@@ -180,27 +189,27 @@ def size_all(stats):
     return all(x[1].st_size == size for x in stats)
 
 
-def size_any(size,stats):
-    return any([st.st_size == size for (path,st) in stats])
+def size_any(size, stats):
+    return any([st.st_size == size for (path, st) in stats])
 
 
 def md5sums_all(stats):
     if size_all(stats):
         hashval = hash_file(stats[0][0])
-        return all(hash_file(path) == hashval for (path,st) in stats[1:])
+        return all(hash_file(path) == hashval for (path, st) in stats[1:])
     return False
 
 
 def short_md5sums_all(stats):
     if size_all(stats):
         hashval = short_hash_file(stats[0][0])
-        return all(short_hash_file(path) == hashval for (path,st) in stats[1:])
+        return all(short_hash_file(path) == hashval for (path, st) in stats[1:])
     return False
 
 
-def oldest_dedup(fullpath,stats):
+def oldest_dedup(fullpath, stats):
     if size_all(stats) and mtime_all(stats):
-        drive_with_most_space_dedup(fullpath,stats)
+        drive_with_most_space_dedup(fullpath, stats)
         return
 
     stats.sort(key=lambda st: st[1].st_mtime)
@@ -208,56 +217,56 @@ def oldest_dedup(fullpath,stats):
     stats.remove(oldest)
 
 
-def strict_oldest_dedup(fullpath,stats):
-    stats.sort(key=lambda st: st[1].st_mtime,reverse=False)
+def strict_oldest_dedup(fullpath, stats):
+    stats.sort(key=lambda st: st[1].st_mtime, reverse=False)
 
     oldest = stats[0]
     stats.remove(oldest)
-    if mtime_any(oldest[1].st_mtime,stats):
+    if mtime_any(oldest[1].st_mtime, stats):
         stats.clear()
 
 
-def newest_dedup(fullpath,stats):
+def newest_dedup(fullpath, stats):
     if size_all(stats) and mtime_all(stats):
-        drive_with_most_space_dedup(fullpath,stats)
+        drive_with_most_space_dedup(fullpath, stats)
         return
 
-    stats.sort(key=lambda st: st[1].st_mtime,reverse=True)
+    stats.sort(key=lambda st: st[1].st_mtime, reverse=True)
     newest = stats[0]
     stats.remove(newest)
 
 
-def strict_newest_dedup(fullpath,stats):
-    stats.sort(key=lambda st: st[1].st_mtime,reverse=True)
+def strict_newest_dedup(fullpath, stats):
+    stats.sort(key=lambda st: st[1].st_mtime, reverse=True)
 
     newest = stats[0]
     stats.remove(newest)
-    if mtime_any(newest[1].st_mtime,stats):
+    if mtime_any(newest[1].st_mtime, stats):
         stats.clear()
 
 
-def largest_dedup(fullpath,stats):
+def largest_dedup(fullpath, stats):
     if size_all(stats) and mtime_all(stats):
-        drive_with_most_space_dedup(fullpath,stats)
+        drive_with_most_space_dedup(fullpath, stats)
         return
 
-    stats.sort(key=lambda st: st[1].st_size,reverse=True)
+    stats.sort(key=lambda st: st[1].st_size, reverse=True)
     largest = stats[0]
     stats.remove(largest)
 
 
-def strict_largest_dedup(fullpath,stats):
-    stats.sort(key=lambda st: st[1].st_size,reverse=True)
+def strict_largest_dedup(fullpath, stats):
+    stats.sort(key=lambda st: st[1].st_size, reverse=True)
 
     largest = stats[0]
     stats.remove(largest)
-    if size_any(largest[1].st_size,stats):
+    if size_any(largest[1].st_size, stats):
         stats.clear()
 
 
-def smallest_dedup(fullpath,stats):
+def smallest_dedup(fullpath, stats):
     if size_all(stats) and mtime_all(stats):
-        drive_with_most_space_dedup(fullpath,stats)
+        drive_with_most_space_dedup(fullpath, stats)
         return
 
     stats.sort(key=lambda st: st[1].st_size)
@@ -265,12 +274,12 @@ def smallest_dedup(fullpath,stats):
     stats.remove(smallest)
 
 
-def strict_smallest_dedup(fullpath,stats):
-    stats.sort(key=lambda st: st[1].st_size,reverse=False)
+def strict_smallest_dedup(fullpath, stats):
+    stats.sort(key=lambda st: st[1].st_size, reverse=False)
 
     smallest = stats[0]
     stats.remove(smallest)
-    if size_any(smallest[1].st_size,stats):
+    if size_any(smallest[1].st_size, stats):
         stats.clear()
 
 
@@ -279,22 +288,22 @@ def calc_space_free(stat):
     return st.f_frsize * st.f_bfree
 
 
-def drive_with_most_space_dedup(fullpath,stats):
-    stats.sort(key=calc_space_free,reverse=True)
+def drive_with_most_space_dedup(fullpath, stats):
+    stats.sort(key=calc_space_free, reverse=True)
     largest = stats[0]
     stats.remove(largest)
 
 
-def mergerfs_getattr_dedup(origpath,stats):
-    fullpath = getxattr(origpath,b'user.mergerfs.fullpath')
-    for (path,stat) in stats:
+def mergerfs_getattr_dedup(origpath, stats):
+    fullpath = getxattr(origpath, b'user.mergerfs.fullpath')
+    for (path, stat) in stats:
         if path != fullpath:
             continue
-        stats.remove((path,stat))
+        stats.remove((path, stat))
         break
 
 
-def get_dedupfun(name,strict):
+def get_dedupfun(name, strict):
     if strict:
         name = 'strict-' + name
     funs = {
@@ -311,7 +320,7 @@ def get_dedupfun(name,strict):
         'smallest': smallest_dedup,
         'strict-smallest': strict_smallest_dedup,
         'mergerfs': mergerfs_getattr_dedup,
-        'strict-mergerfs': mergerfs_getattr_dedup
+        'strict-mergerfs': mergerfs_getattr_dedup,
     }
     return funs[name]
 
@@ -326,19 +335,19 @@ def get_ignorefun(name):
         'same-hash': md5sums_all,
         'diff-hash': lambda x: not md5sums_all(x),
         'same-short-hash': short_md5sums_all,
-        'diff-short-hash': lambda x: not short_md5sums_all(x)
+        'diff-short-hash': lambda x: not short_md5sums_all(x),
     }
 
     return funs[name]
 
 
-def getxattr(path,key):
+def getxattr(path, key):
     try:
-        attr = lgetxattr(path,key)
+        attr = lgetxattr(path, key)
         if attr:
             return attr.decode('utf-8')
         return ''
-    except IOError as e:
+    except OSError as e:
         if e.errno == errno.ENODATA:
             return ''
         raise
@@ -348,15 +357,15 @@ def getxattr(path,key):
     return ''
 
 
-def match(filename,matches):
+def match(filename, matches):
     for match in matches:
-        if fnmatch.fnmatch(filename,match):
+        if fnmatch.fnmatch(filename, match):
             return True
     return False
 
 
-def dedup(fullpath,verbose,ignorefun,execute,dedupfun):
-    paths = getxattr(fullpath,b'user.mergerfs.allpaths').split('\0')
+def dedup(fullpath, verbose, ignorefun, execute, dedupfun):
+    paths = getxattr(fullpath, b'user.mergerfs.allpaths').split('\0')
     if len(paths) <= 1:
         return 0
 
@@ -364,34 +373,34 @@ def dedup(fullpath,verbose,ignorefun,execute,dedupfun):
 
     if ignorefun(stats):
         if verbose >= 2:
-            print('# ignored:',fullpath)
+            print('# ignored:', fullpath)
         return 0
 
-    if (dedupfun == manual_dedup):
-        print('#',fullpath)
+    if dedupfun == manual_dedup:
+        print('#', fullpath)
         print_stats(stats)
 
     try:
-        dedupfun(fullpath,stats)
+        dedupfun(fullpath, stats)
         if not stats:
             if verbose >= 2:
-                print('# skipped:',fullpath)
+                print('# skipped:', fullpath)
             return 0
 
-        if (dedupfun != manual_dedup):
+        if dedupfun != manual_dedup:
             if verbose >= 2:
-                print('#',fullpath)
+                print('#', fullpath)
             if verbose >= 3:
                 print_stats(stats)
 
-        for (path,stat) in stats:
+        for (path, stat) in stats:
             try:
                 if verbose:
-                    print('rm -vf',shlex.quote(path))
+                    print('rm -vf', shlex.quote(path))
                 if execute:
                     os.remove(path)
             except Exception as e:
-                print('#',e)
+                print('#', e)
 
         return total_size(stats)
 
@@ -402,8 +411,7 @@ def dedup(fullpath,verbose,ignorefun,execute,dedupfun):
 
 
 def print_help():
-    help = \
-'''
+    help = '''
 usage: mergerfs.dedup [<options>] <dir>
 
 Remove duplicate files across branches of a mergerfs pool. Provides
@@ -449,61 +457,100 @@ optional arguments:
 
 
 def buildargparser():
-    desc = 'dedup files across branches in a mergerfs pool'
-    usage = 'mergerfs.dedup [<options>] <dir>'
+    # desc = 'dedup files across branches in a mergerfs pool'
+    # usage = 'mergerfs.dedup [<options>] <dir>'
     parser = argparse.ArgumentParser(add_help=False)
 
-    parser.add_argument('dir',
-                        type=str,
-                        nargs='?',
-                        default=None,
-                        help='starting directory')
-    parser.add_argument('-v','--verbose',
-                        action='count',
-                        default=0)
-    parser.add_argument('-i','--ignore',
-                        choices=['same-size','diff-size',
-                                 'same-time','diff-time',
-                                 'same-hash','diff-hash',
-                                 'same-short-hash',
-                                 'diff-short-hash'])
-    parser.add_argument('-d','--dedup',
-                        choices=['manual',
-                                 'oldest','newest',
-                                 'smallest','largest',
-                                 'mostfreespace',
-                                 'mergerfs'],
-                        default='mergerfs')
-    parser.add_argument('-s','--strict',
-                        action='store_true')
-    parser.add_argument('-e','--execute',
-                        action='store_true')
-    parser.add_argument('-I','--include',
-                        type=str,
-                        action='append',
-                        default=[])
-    parser.add_argument('-E','--exclude',
-                        type=str,
-                        action='append',
-                        default=[])
-    parser.add_argument('-h','--help',
-                        action='store_true')
+    parser.add_argument(
+        'dir',
+        type=str,
+        nargs='?',
+        default=None,
+        help='starting directory',
+    )
+    parser.add_argument(
+        '-v',
+        '--verbose',
+        action='count',
+        default=0,
+    )
+    parser.add_argument(
+        '-i',
+        '--ignore',
+        choices=[
+            'same-size',
+            'diff-size',
+            'same-time',
+            'diff-time',
+            'same-hash',
+            'diff-hash',
+            'same-short-hash',
+            'diff-short-hash',
+        ],
+    )
+    parser.add_argument(
+        '-d',
+        '--dedup',
+        choices=[
+            'manual',
+            'oldest',
+            'newest',
+            'smallest',
+            'largest',
+            'mostfreespace',
+            'mergerfs',
+        ],
+        default='mergerfs',
+    )
+    parser.add_argument(
+        '-s',
+        '--strict',
+        action='store_true',
+    )
+    parser.add_argument(
+        '-e',
+        '--execute',
+        action='store_true',
+    )
+    parser.add_argument(
+        '-I',
+        '--include',
+        type=str,
+        action='append',
+        default=[],
+    )
+    parser.add_argument(
+        '-E',
+        '--exclude',
+        type=str,
+        action='append',
+        default=[],
+    )
+    parser.add_argument(
+        '-h',
+        '--help',
+        action='store_true',
+    )
 
     return parser
 
 
 def main():
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer,
-                                  encoding='utf8',
-                                  errors='backslashreplace',
-                                  line_buffering=True)
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer,
-                                  encoding='utf8',
-                                  errors='backslashreplace',
-                                  line_buffering=True)
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer,
+        encoding='utf8',
+        errors='backslashreplace',
+        line_buffering=True,
+    )
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer,
+        encoding='utf8',
+        errors='backslashreplace',
+        line_buffering=True,
+    )
 
     parser = buildargparser()
-    args   = parser.parse_args()
+    args = parser.parse_args()
 
     if args.help or not args.dir:
         print_help()
@@ -514,32 +561,32 @@ def main():
         print("%s is not a mergerfs directory" % args.dir)
         sys.exit(1)
 
-    dedupfun  = get_dedupfun(args.dedup,args.strict)
+    dedupfun = get_dedupfun(args.dedup, args.strict)
     ignorefun = get_ignorefun(args.ignore)
-    verbose   = args.verbose
-    execute   = args.execute
-    includes  = ['*'] if not args.include else args.include
-    excludes  = args.exclude
+    verbose = args.verbose
+    execute = args.execute
+    includes = ['*'] if not args.include else args.include
+    excludes = args.exclude
 
     total_size = 0
     try:
-        for (dirname,dirnames,filenames) in os.walk(args.dir):
+        for (dirname, dirnames, filenames) in os.walk(args.dir):
             for filename in filenames:
-                fullpath    = os.path.join(dirname,filename)
-                if match(fullpath,excludes):
+                fullpath = os.path.join(dirname, filename)
+                if match(fullpath, excludes):
                     continue
-                if not match(fullpath,includes):
+                if not match(fullpath, includes):
                     continue
-                total_size += dedup(fullpath,verbose,ignorefun,execute,dedupfun)
+                total_size += dedup(fullpath, verbose, ignorefun, execute, dedupfun)
     except KeyboardInterrupt:
         print("# exiting: CTRL-C pressed")
-    except IOError as e:
+    except OSError as e:
         if e.errno == errno.EPIPE:
             pass
         else:
             raise
 
-    print('# Total savings:',sizeof_fmt(total_size))
+    print('# Total savings:', sizeof_fmt(total_size))
 
     sys.exit(0)
 
