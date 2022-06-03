@@ -81,17 +81,10 @@ def main():
 
     for (dirname, dirnames, filenames) in os.walk(args.from_path):
         fulldirpath = os.path.join(args.from_path, dirname)
-        # print(dirname)
-        # print(f"full dir: {fulldirpath}")
-        # print(f"rel dir: {os.path.relpath(dirname, args.from_path)}")
-        copy_times(os.path.relpath(dirname, args.from_path))
-        # check_consistancy(fulldirpath,verbose)
+        copy_times(fulldirpath)
         for filename in filenames:
             fullpath = os.path.join(fulldirpath, filename)
-            # print(f"full path: {fullpath}")
-            # print(filename)
             copy_times(fullpath)
-            # check_consistancy(fullpath, verbose)
 
     print(f"Changed: {changed_count} files{'' if args.execute else ' (DRY-RUN)'}")
 
