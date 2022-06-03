@@ -525,11 +525,11 @@ def main():
     try:
         for (dirname,dirnames,filenames) in os.walk(args.dir):
             for filename in filenames:
-                if match(filename,excludes):
-                    continue
-                if not match(filename,includes):
-                    continue
                 fullpath    = os.path.join(dirname,filename)
+                if match(fullpath,excludes):
+                    continue
+                if not match(fullpath,includes):
+                    continue
                 total_size += dedup(fullpath,verbose,ignorefun,execute,dedupfun)
     except KeyboardInterrupt:
         print("# exiting: CTRL-C pressed")
